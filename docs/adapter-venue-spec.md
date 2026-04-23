@@ -54,10 +54,11 @@ Stack-agnostic contract for the **web + Telegram adapter** slice: how the app de
 | `is_nsfw_or_restricted` | bool | For filtering. |
 | `scoring_weight` | float | Curator / ML tuning; default 1.0. |
 | `last_verified_at` | datetime, nullable | Human or job verification. |
+| `tags` | string[] | Optional topic tags for filter and search (e.g. `indie`, `oss`). |
 | `metadata` | JSON | Free-form: Telegram chat id, invite policy, etc. (see §5). |
 | `created_at` / `updated_at` | datetime | Audit. |
 
-**Indexes to plan early:** `type + language`, `source`, `tags` (if normalized), `metadata` (GIN or provider-specific) per DB.
+**Indexes to plan early:** `type + language`, `source`, GIN on `tags` (if used), `metadata` (GIN or provider-specific) per DB.
 
 ---
 
@@ -138,11 +139,14 @@ Host app **merges** candidates with curated `Venue` rows, deduplicates, then run
 
 **Goal:** return **candidates** that look like public chats/supergroups/channels relevant to the brief, not post on behalf of the user.
 
-### 5.1 Implementation options (choose one for v0.1)
+### 5.1 Implementation options (status for v0.1)
 
-- **A — Bot + MTProto / userbot (high risk):** can search inside Telegram in ways a normal bot cannot; **ToS, legal, and account ban risk** — not recommended for OSS default.
-- **B — Public discovery only (recommended for v0.1):** use **public** t.me / catalog data / your own index built from **allowed** sources, plus keyword match on `title`/`description` you already have in DB. No search API guarantees from Telegram for “all chats.”
-- **C — Hybrid:** curated list of “known comms” in DB + **light** expansion via official Bot API (e.g. getChat for usernames the user or curator adds).
+**Decision (2026-04-23, eng review):** v0.1 uses the **curated-DB + match/rank** model only. The Telegram `search()` implementation **must not** call third-party or Telegram-wide “find any public group” services unless product and ToS are explicitly revisited. Rationale: the Bot API does not expose a global public-chat search; off-platform “discovery” APIs are a separate product and legal review surface.
+
+- **A — Curated + match in DB (v0.1, locked):** the adapter **ranks and explains** `Venue` rows (and optional pre-imported public metadata you control) using `ProjectBrief` + `query_text` against fields you store (`title`, `description`, `tags`, etc.). This is the honest “Telegram” slice for v0.1. Document behavior in the `adapter_id: telegram` README and in `docs/telegram-strategy.md`.
+- **B — Enrichment via Bot API (post-v0.1 or optional if needed):** `getChat` and similar for usernames you **already** store, to refresh titles/member visibility flags — not used as a global discovery source.
+- **C — Userbot / MTProto “search Telegram” (not in scope):** high **ToS, legal, and account** risk; not a default for OSS.
+- **D — Third-party directory API (deferred):** if added later, requires its own allowlist, keys, and compliance line in the README.
 
 Document the chosen path in `adapter_id: telegram` README.
 
@@ -195,7 +199,7 @@ Document the chosen path in `adapter_id: telegram` README.
 
 ## 8. Checklist: before implementation
 
-- [ ] Decide Telegram strategy (§5.1) and write one paragraph in `docs/telegram-strategy.md`.
+- [x] Decide Telegram strategy (§5.1) and write one paragraph in `docs/telegram-strategy.md`.
 - [ ] Define `Venue` migration and seed format (CSV/JSON) for first curated rows.
 - [ ] Define rate limits and cache keys for `telegram` adapter.
 - [ ] Add privacy + retention line to README (what you store, how long).
