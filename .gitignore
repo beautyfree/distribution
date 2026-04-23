@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# debug
+npm-debug.log*
+.DS_Store
+
+# drizzle
+drizzle/meta/
+
+# typescript
+next-env.d.ts
+*.tsbuildinfo

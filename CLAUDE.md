@@ -2,6 +2,12 @@
 
 Project workspace for distribution tooling concepts and implementation.
 
+## Implementation (v0.1)
+
+- **Stack:** Next.js 15 (App Router), Drizzle + `pg`, Postgres.
+- **Dev:** `docker compose up -d` → copy `.env.example` to `.env` → `npm run db:push` → `npm run db:seed` → `npm run dev`.
+- **API:** `POST /api/recommendations` (JSON body = `ProjectBrief`), `GET /api/health`.
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill

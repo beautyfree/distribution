@@ -1,0 +1,70 @@
+[
+  {
+    "slug": "indie-hackers",
+    "name": "Indie Hackers",
+    "type": "community_chat",
+    "source": "curated",
+    "url": "https://www.indiehackers.com/",
+    "description": "Community for founders sharing revenue and product stories. English-first. Value before link drops.",
+    "language": "en",
+    "region": "Global",
+    "rulesUrl": "https://www.indiehackers.com/about",
+    "requiresApproval": false,
+    "isNsfwOrRestricted": false,
+    "scoringWeight": 1.2,
+    "tags": ["indie", "saas", "founder"],
+    "metadata": {}
+  },
+  {
+    "slug": "telegram-producthunters",
+    "name": "Product Hunt community (example Telegram)",
+    "type": "community_chat",
+    "source": "adapter_telegram",
+    "url": null,
+    "description": "Example row: Telegram-flavoured community for makers discussing launches. Replace with your real curated chats.",
+    "language": "en",
+    "region": "Global",
+    "rulesUrl": null,
+    "requiresApproval": true,
+    "isNsfwOrRestricted": false,
+    "scoringWeight": 1,
+    "tags": ["launch", "product", "telegram"],
+    "metadata": {
+      "telegram": { "username": "example_channel", "is_public": true }
+    }
+  },
+  {
+    "slug": "betalist",
+    "name": "BetaList",
+    "type": "directory",
+    "source": "curated",
+    "url": "https://betalist.com/",
+    "description": "Directory for upcoming startups. Submission-based discovery for early users.",
+    "language": "en",
+    "region": "Global",
+    "rulesUrl": "https://betalist.com/submit",
+    "requiresApproval": false,
+    "isNsfwOrRestricted": false,
+    "scoringWeight": 1,
+    "tags": ["launch", "directory", "early-users"],
+    "metadata": {}
+  },
+  {
+    "slug": "vc-ru-founders",
+    "name": "RU founders chat (example)",
+    "type": "community_chat",
+    "source": "curated",
+    "url": null,
+    "description": "Russian-language founder discussions; stricter self-promo norms than EN Twitter.",
+    "language": "ru",
+    "region": "CIS",
+    "rulesUrl": null,
+    "requiresApproval": true,
+    "isNsfwOrRestricted": false,
+    "scoringWeight": 0.9,
+    "tags": ["founder", "cis"],
+    "metadata": {
+      "telegram": { "username": "example_ru_chat", "is_public": false }
+    }
+  }
+]
