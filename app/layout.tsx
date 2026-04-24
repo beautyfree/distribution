@@ -1,24 +1,10 @@
 import type { Metadata } from "next";
-import { Fraunces, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 
-const display = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const body = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-body",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
-  title: "Distribution — where to post",
+  title: "distribution — where to post your side-project",
   description:
-    "Describe your project, get ranked venues with evidence and drafts. Curated index; Telegram slice ranks your DB only in v0.1.",
+    "An open registry of communities where AI builders ship and share. Telegram, Reddit, Discord, dev directories. Updated by the community.",
 };
 
 export default function RootLayout({
@@ -27,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
-      <body>{children}</body>
+    <html lang="en">
+      <body className="bg-bg text-fg">{children}</body>
     </html>
   );
 }

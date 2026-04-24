@@ -1,349 +1,237 @@
-"use client";
+import { KeyboardShortcuts } from "./keyboard";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Recommendation } from "@/lib/recommendations";
-
-type ChecklistState = Record<string, Record<string, boolean>>;
-
-function loadChecklistState(): ChecklistState {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem("distribution:checklist:v0");
-    if (!raw) return {};
-    return JSON.parse(raw) as ChecklistState;
-  } catch {
-    return {};
-  }
-}
-
-function saveChecklistState(next: ChecklistState) {
-  localStorage.setItem("distribution:checklist:v0", JSON.stringify(next));
-}
-
+/**
+ * Homepage — static port of designs/homepage-20260424/variant-C-linear.html.
+ *
+ * Server Component. All interactivity (Cmd/Ctrl+K focus, filter chips, result
+ * fetching, draft generation) is stubbed — this is the visual carcass that
+ * matches the approved variant C mockup 1:1.
+ *
+ * TODO: wire to /api/match and /api/draft in a follow-up.
+ */
 export default function HomePage() {
-  const [title, setTitle] = useState("");
-  const [summary, setSummary] = useState("");
-  const [language, setLanguage] = useState("en");
-  const [tagsStr, setTagsStr] = useState("indie, saas");
-  const [linksStr, setLinksStr] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [copyToast, setCopyToast] = useState<string | null>(null);
-  const [checklist, setChecklist] = useState<ChecklistState>({});
-  const [finishedRequest, setFinishedRequest] = useState(false);
-
-  useEffect(() => {
-    setChecklist(loadChecklistState());
-  }, []);
-
-  const toggleExpand = useCallback((id: string) => {
-    setExpanded((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  }, []);
-
-  const toggleChecklist = useCallback(
-    (recId: string, itemId: string, done: boolean) => {
-      setChecklist((prev) => {
-        const next = {
-          ...prev,
-          [recId]: { ...prev[recId], [itemId]: done },
-        };
-        saveChecklistState(next);
-        return next;
-      });
-    },
-    [],
-  );
-
-  const onSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      setError(null);
-      setCopyToast(null);
-      setLoading(true);
-      setFinishedRequest(false);
-      setRecommendations([]);
-      try {
-        const tags = tagsStr
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const links = linksStr
-          .split(/\n/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const res = await fetch("/api/recommendations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            schema_version: "1.0",
-            title,
-            summary,
-            language,
-            tags,
-            links,
-          }),
-        });
-        const data = (await res.json()) as {
-          recommendations?: Recommendation[];
-          error?: string;
-          details?: string;
-        };
-        if (!res.ok) {
-          setError(
-            data.details ?? data.error ?? `Request failed (${res.status})`,
-          );
-          return;
-        }
-        setRecommendations(data.recommendations ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Network error");
-      } finally {
-        setLoading(false);
-        setFinishedRequest(true);
-      }
-    },
-    [title, summary, language, tagsStr, linksStr],
-  );
-
-  const copyDraft = useCallback(async (body: string) => {
-    try {
-      await navigator.clipboard.writeText(body);
-      setCopyToast("Copied");
-      setTimeout(() => setCopyToast(null), 2000);
-    } catch {
-      setCopyToast("Copy failed");
-      setTimeout(() => setCopyToast(null), 2500);
-    }
-  }, []);
-
-  const checklistFor = useCallback(
-    (rec: Recommendation) => {
-      const stored = checklist[rec.recommendation_id] ?? {};
-      return rec.checklist.map((item) => ({
-        ...item,
-        done: stored[item.id] ?? item.done,
-      }));
-    },
-    [checklist],
-  );
-
-  const emptyMessage = useMemo(() => {
-    if (!finishedRequest || loading || recommendations.length > 0) return null;
-    return (
-      <div className="empty-state" role="status">
-        <p>
-          <strong>No venues match yet.</strong> Try broadening language, adding
-          tags that describe your stack or audience, or seeding more curated rows
-          in Postgres.
-        </p>
-      </div>
-    );
-  }, [finishedRequest, loading, recommendations.length]);
-
   return (
     <>
-      <header className="app-header">
-        <strong>Distribution</strong>
-      </header>
-      <main>
-        <h1>Where to post</h1>
-        <p className="value-prop">
-          Describe your project — get ranked venues, evidence, and a draft you
-          can edit. Suggestions come from <strong>your curated index</strong>{" "}
-          (v0.1 Telegram slice ranks DB rows only; no global Telegram search).
-        </p>
-
-        <h2 id="brief">Your project</h2>
-        <form className="form-grid" onSubmit={onSubmit} aria-labelledby="brief">
-          <label>
-            Title <span aria-hidden="true">*</span>
-            <input
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              autoComplete="off"
-            />
-          </label>
-          <label>
-            Summary <span aria-hidden="true">*</span>
-            <textarea
-              required
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-            />
-          </label>
-          <label>
-            Language
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+      <KeyboardShortcuts />
+      <main className="mx-auto max-w-[720px] px-6 py-6 leading-[1.5]">
+        <header className="flex items-center justify-between pt-3 pb-8">
+          <div className="flex items-center gap-[10px]">
+            <div
+              className="flex h-6 w-6 items-center justify-center rounded-md text-[14px] font-bold text-[var(--accent-fg)]"
+              style={{
+                background: "var(--accent)",
+                fontFamily: "var(--font-mono)",
+              }}
+              aria-hidden
             >
-              <option value="en">en</option>
-              <option value="ru">ru</option>
-            </select>
-          </label>
-          <label>
-            Tags (comma-separated)
-            <input
-              value={tagsStr}
-              onChange={(e) => setTagsStr(e.target.value)}
-              placeholder="indie, devtool"
-            />
-          </label>
-          <label>
-            Links (one URL per line, optional)
-            <textarea
-              value={linksStr}
-              onChange={(e) => setLinksStr(e.target.value)}
-              rows={2}
-            />
-          </label>
-          <button
-            type="submit"
-            className="primary"
-            disabled={loading}
-            aria-busy={loading}
-          >
-            {loading ? "Loading…" : "Get recommendations"}
-          </button>
-        </form>
-
-        {error ? (
-          <div className="alert" role="alert">
-            {error}
+              d
+            </div>
+            <div className="text-[16px] font-semibold tracking-[-0.01em]">
+              distribution
+            </div>
           </div>
-        ) : null}
+          <nav className="flex items-center gap-4">
+            <a
+              href="#"
+              className="text-[13px] text-muted hover:text-fg"
+            >
+              browse
+            </a>
+            <a
+              href="#"
+              className="inline-flex min-h-[44px] items-center rounded-md border border-border px-3 py-1.5 text-[13px] text-fg hover:border-[color:var(--fg)] md:min-h-0"
+            >
+              Add channel →
+            </a>
+          </nav>
+        </header>
 
-        <h2 id="results">Recommendations</h2>
-        <div aria-live="polite">
-          {emptyMessage}
-          <ul className="venue-list">
-            {recommendations.map((rec) => {
-              const v = rec.venue;
-              const name = String(v.name ?? "Venue");
-              const type = String(v.type ?? "");
-              const source = String(v.source ?? "");
-              const isAdapter = source === "adapter_telegram";
-              const open = expanded.has(rec.recommendation_id);
-              const draft = rec.draft_posts[0]?.body ?? "";
-              return (
-                <li key={rec.recommendation_id} className="venue-row">
-                  <header>
-                    <strong>{name}</strong>
-                    <span className="badge">{type.replace("_", " ")}</span>
-                    <span
-                      className={isAdapter ? "badge adapter" : "badge"}
-                      title="Provenance"
-                    >
-                      {isAdapter ? "adapter:telegram (DB)" : "curated"}
-                    </span>
-                    {v.url ? (
-                      <a href={String(v.url)} target="_blank" rel="noreferrer">
-                        Link
-                      </a>
-                    ) : null}
-                  </header>
-                  <ul className="evidence">
-                    {rec.evidence.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                  <div className="copy-row">
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => toggleExpand(rec.recommendation_id)}
-                      aria-expanded={open}
-                    >
-                      {open ? "Hide draft" : "Show draft"}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => copyDraft(draft)}
-                    >
-                      Copy draft
-                    </button>
-                    {copyToast ? (
-                      <span className="toast" role="status">
-                        {copyToast}
-                      </span>
-                    ) : null}
-                  </div>
-                  {open ? (
-                    <pre
-                      style={{
-                        marginTop: "0.5rem",
-                        padding: "0.65rem",
-                        background: "#f3f1ec",
-                        borderRadius: "var(--radius-input)",
-                        fontSize: "0.8rem",
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {draft}
-                    </pre>
-                  ) : null}
-                  <div style={{ marginTop: "0.65rem" }}>
-                    <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                      Checklist (saved in this browser)
-                    </div>
-                    <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.2rem" }}>
-                      {checklistFor(rec).map((item) => (
-                        <li key={item.id} style={{ listStyle: "none" }}>
-                          <label
-                            style={{
-                              display: "flex",
-                              gap: "0.5rem",
-                              alignItems: "center",
-                              fontSize: "0.875rem",
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={item.done}
-                              onChange={(e) =>
-                                toggleChecklist(
-                                  rec.recommendation_id,
-                                  item.id,
-                                  e.target.checked,
-                                )
-                              }
-                            />
-                            {item.label}
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <div className="disclaimer">
-          <p>
-            Suggestions are not endorsed by venue moderators. Read each
-            community&apos;s rules before posting.
+        <section className="mt-8">
+          <h1 className="mb-3 text-[40px] font-semibold tracking-[-0.025em] leading-[1.1]">
+            Where to post your side-project.
+          </h1>
+          <p className="mb-8 max-w-[540px] text-[16px] text-muted">
+            An open registry of communities where AI builders ship and share.
+            Telegram, Reddit, Discord, dev directories. Updated by the
+            community.
           </p>
-          <p>Do not spam; this tool only suggests where to look.</p>
+
+          <form
+            className="rounded-lg border border-border bg-bg p-1 transition-[border-color,box-shadow] duration-150 focus-within:border-[color:var(--fg)] focus-within:shadow-[0_0_0_4px_rgba(15,15,15,0.04)]"
+            action="/api/match"
+            method="post"
+          >
+            {/* TODO: wire to /api/match — submit description, render results */}
+            <label htmlFor="project-description" className="sr-only">
+              Describe what you built
+            </label>
+            <textarea
+              id="project-description"
+              name="description"
+              placeholder="Describe what you built…"
+              className="min-h-[88px] w-full resize-none border-0 bg-transparent p-3.5 text-[15px] text-fg outline-none placeholder:text-muted"
+              autoFocus
+            />
+            <div className="flex items-center justify-between gap-3 px-2 pb-2 pt-2 pl-2">
+              <div
+                className="flex flex-wrap gap-1.5"
+                aria-label="example prompts"
+              >
+                {["AI tool for video editors", "B2B sales agent", "indie writing app"].map(
+                  (ex) => (
+                    <button
+                      key={ex}
+                      type="button"
+                      className="rounded border border-border px-2 py-1 text-[12px] text-muted hover:border-[color:var(--fg)] hover:text-fg"
+                    >
+                      {ex}
+                    </button>
+                  ),
+                )}
+              </div>
+              <button
+                type="submit"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-fg px-3.5 py-2 text-[13px] font-medium text-bg hover:bg-[color:var(--accent)] hover:text-[color:var(--accent-fg)] md:min-h-0"
+              >
+                Find{" "}
+                <kbd
+                  className="rounded-[3px] bg-white/15 px-[5px] py-[1px] text-[11px]"
+                  style={{ fontFamily: "var(--font-mono)" }}
+                >
+                  ⏎
+                </kbd>
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <div className="mt-8 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[12px] text-muted">Filter</span>
+          {/* TODO: wire to /api/match — filter result set client-side */}
+          <FilterChip label="all types" active />
+          <FilterChip label="telegram" />
+          <FilterChip label="reddit" />
+          <FilterChip label="discord" />
+          <FilterChip label="en" />
+          <FilterChip label="1k+ subs" />
+          <label htmlFor="sort-select" className="sr-only">
+            Sort results
+          </label>
+          <select
+            id="sort-select"
+            className="ml-auto rounded border border-border bg-transparent px-2 py-1 text-[12px] text-muted"
+            defaultValue="best"
+          >
+            <option value="best">Best match</option>
+            <option value="newest">Newest</option>
+            <option value="audience">Audience size</option>
+          </select>
         </div>
 
-        <footer className="site-footer">
-          Privacy: checklist toggles stay in <code>localStorage</code> on this
-          device only. Brief text is sent to this app&apos;s server for ranking
-          and is not logged by default — define retention in README for
-          production.
+        <section className="mt-4" aria-label="Results">
+          <div
+            className="mb-3 text-[12px] text-muted"
+            style={{ fontFamily: "var(--font-mono)" }}
+          >
+            <span className="font-semibold text-fg">142</span> channels found ·{" "}
+            <span className="font-semibold text-fg">+23</span> added this week
+          </div>
+
+          {/* TODO: wire to /api/match — replace sample cards with real results */}
+          <ResultCard
+            name="Indie Hackers Telegram"
+            type="telegram-chat"
+            audience="12.4k subs"
+            rules={`Mon: "share what you're building" thread. Other days: no link spam, conversation only.`}
+          />
+          <ResultCard
+            name="r/SideProject"
+            type="subreddit"
+            audience="186k subs"
+            rules={`Self-promotion welcome. Format: "I built X, here's what I learned." No pure link drops.`}
+          />
+        </section>
+
+        <footer className="mt-16 flex items-center gap-4 border-t border-border pt-4 text-[12px] text-muted">
+          <a href="#" className="text-muted hover:text-fg">
+            GitHub ↗
+          </a>
+          <a href="#" className="text-muted hover:text-fg">
+            CC0 license
+          </a>
+          <span className="ml-auto">Made by builders</span>
         </footer>
       </main>
     </>
+  );
+}
+
+function FilterChip({ label, active }: { label: string; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={active ?? false}
+      className={
+        active
+          ? "rounded border border-[color:var(--accent)] bg-[rgba(255,92,0,0.06)] px-2.5 py-1 text-[12px] text-[color:var(--accent)]"
+          : "rounded border border-border bg-transparent px-2.5 py-1 text-[12px] text-muted hover:border-[color:var(--fg)] hover:text-fg"
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
+function ResultCard({
+  name,
+  type,
+  audience,
+  rules,
+}: {
+  name: string;
+  type: string;
+  audience: string;
+  rules: string;
+}) {
+  return (
+    <article
+      aria-label={`${name}, ${audience}`}
+      className="mb-2 rounded-lg border border-border p-4 transition-colors duration-150 hover:border-[color:var(--fg)]"
+    >
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span className="text-[15px] font-semibold">{name}</span>
+          <span
+            className="rounded-sm bg-border px-1.5 py-0.5 text-[11px] text-muted"
+            style={{ fontFamily: "var(--font-mono)" }}
+          >
+            {type}
+          </span>
+        </div>
+        <span
+          className="whitespace-nowrap text-[13px] text-muted"
+          style={{ fontFamily: "var(--font-mono)" }}
+        >
+          {audience}
+        </span>
+      </div>
+      <div className="mb-3 text-[13px] text-muted">{rules}</div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className="min-h-[44px] rounded-md border-0 bg-[color:var(--accent)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--accent-fg)] md:min-h-0"
+        >
+          {/* TODO: wire to /api/draft */}
+          Generate post
+        </button>
+        <a
+          href="#"
+          className="inline-flex min-h-[44px] items-center rounded-md border border-border px-3 py-1.5 text-[12px] text-muted hover:border-[color:var(--fg)] hover:text-fg md:min-h-0"
+        >
+          Open ↗
+        </a>
+      </div>
+    </article>
   );
 }

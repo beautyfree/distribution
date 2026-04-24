@@ -16,9 +16,7 @@ out/
 npm-debug.log*
 .DS_Store
 
-# drizzle
-drizzle/meta/
-
 # typescript
 next-env.d.ts
 *.tsbuildinfo
+data/embeddings.json
