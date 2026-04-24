@@ -353,7 +353,7 @@ function EmptyResults() {
       <div>
         Try a broader phrase, or{" "}
         <a
-          href="https://github.com/devall/distribution-registry/issues/new?template=add-channel.md"
+          href="https://github.com/beautyfree/distribution-registry/issues/new?template=add-channel.md"
           className="underline hover:text-fg"
           target="_blank"
           rel="noreferrer"

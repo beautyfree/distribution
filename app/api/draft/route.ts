@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCache } from "@/lib/registry/cache";
+import { resolveChatConfig } from "@/lib/registry/llm-client";
 import type { Node } from "@/lib/registry/types";
 
 const BodySchema = z.object({
@@ -61,19 +62,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "unknown nodeId" }, { status: 404 });
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  const chat = resolveChatConfig();
+  if (!chat) {
     return NextResponse.json({
-      draft: `[stub draft — set OPENAI_API_KEY to enable real generation]\n\nFor ${entry.node.name}:\n${description.trim()}`,
+      draft: `[stub draft — set OPENAI_API_KEY or OPENROUTER_API_KEY to enable]\n\nFor ${entry.node.name}:\n${description.trim()}`,
       mode: "stub",
     });
   }
 
   try {
     const { default: OpenAI } = await import("openai");
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const client = new OpenAI({
+      apiKey: chat.apiKey,
+      baseURL: chat.baseURL,
+      defaultHeaders: chat.headers,
+    });
     const { system, user } = buildPrompt(entry.node, description);
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: chat.model,
       temperature: 0.7,
       max_tokens: 400,
       messages: [
@@ -85,7 +91,11 @@ export async function POST(req: Request) {
     if (!draft) {
       return NextResponse.json({ error: "empty draft" }, { status: 502 });
     }
-    return NextResponse.json({ draft, mode: "openai" });
+    return NextResponse.json({
+      draft,
+      mode: chat.baseURL ? "openrouter" : "openai",
+      model: chat.model,
+    });
   } catch (err) {
     const status = (err as { status?: number })?.status;
     if (status === 429) {

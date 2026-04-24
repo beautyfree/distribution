@@ -28,7 +28,7 @@ const NODE_TYPES = [
 export class StaticRegistrySource implements RegistrySource {
   constructor(
     private readonly repo = process.env.REGISTRY_REPO ??
-      "devall/distribution-registry",
+      "beautyfree/distribution-registry",
     private readonly branch = process.env.REGISTRY_BRANCH ?? "main",
     private readonly localPath = process.env.REGISTRY_LOCAL_PATH,
   ) {}

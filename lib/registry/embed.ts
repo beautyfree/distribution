@@ -1,26 +1,31 @@
 import type { Node } from "./types";
+import { resolveEmbeddingConfig } from "./llm-client";
 
-const MODEL = "text-embedding-3-small";
 const BATCH_SIZE = 100;
 const STUB_DIM = 1536;
 
 /**
- * Produce an embedding vector per node. Uses OpenAI text-embedding-3-small
- * when OPENAI_API_KEY is set; otherwise returns deterministic stub vectors so
- * the build still completes in dev / CI without credentials.
+ * Produce an embedding vector per node at build time. Uses OpenAI
+ * text-embedding-3-small when OPENAI_API_KEY is set; otherwise returns
+ * deterministic stub vectors so the build still completes. OpenRouter
+ * does not proxy OpenAI embeddings.
  */
 export async function embedAll(nodes: Node[]): Promise<Float32Array[]> {
-  if (!process.env.OPENAI_API_KEY) {
+  const cfg = resolveEmbeddingConfig();
+  if (!cfg) {
+    console.warn(
+      "[embed] no OPENAI_API_KEY — writing stub vectors, reader uses topical fallback",
+    );
     return nodes.map(() => stubVector());
   }
   const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client = new OpenAI({ apiKey: cfg.apiKey });
 
   const out: Float32Array[] = [];
   for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
     const batch = nodes.slice(i, i + BATCH_SIZE);
     const input = batch.map(nodeToEmbeddingText);
-    const res = await client.embeddings.create({ model: MODEL, input });
+    const res = await client.embeddings.create({ model: cfg.model, input });
     for (const row of res.data) {
       out.push(new Float32Array(row.embedding));
     }
