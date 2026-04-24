@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   const chat = resolveChatConfig();
   if (!chat) {
     return NextResponse.json({
-      draft: `[stub draft — set OPENAI_API_KEY or OPENROUTER_API_KEY to enable]\n\nFor ${entry.node.name}:\n${description.trim()}`,
+      draft: `[stub draft — set OPENROUTER_API_KEY (or OPENAI_API_KEY) to enable generation]\n\nFor ${entry.node.name}:\n${description.trim()}`,
       mode: "stub",
     });
   }

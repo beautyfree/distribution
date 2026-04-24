@@ -280,13 +280,21 @@ export function SearchExperience() {
         ) : hasResults ? (
           <>
             <div
-              className="mb-3 text-[12px] text-muted"
+              className="mb-3 flex flex-wrap items-center gap-2 text-[12px] text-muted"
               style={{ fontFamily: "var(--font-mono)" }}
             >
-              <span className="font-semibold text-fg">{results!.count}</span>{" "}
-              channels found
+              <span>
+                <span className="font-semibold text-fg">{results!.count}</span>{" "}
+                channels found
+              </span>
               {results!.mode === "topical" ? (
-                <span> · topical fallback (no OpenAI key)</span>
+                <span
+                  className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] text-muted"
+                  title="No embedding key configured — ranking by keyword overlap. Set OPENAI_API_KEY for semantic search."
+                >
+                  <span aria-hidden>ⓘ</span>
+                  <span>[mode: topical]</span>
+                </span>
               ) : null}
             </div>
             {results!.nodes.map((n) => (
@@ -432,7 +440,7 @@ function ResultCard({
       <div className="mb-3 text-[13px] text-muted">{node.post_rules}</div>
 
       {draft?.state === "ok" ? (
-        <div className="mb-3 rounded-md border border-border bg-[color:var(--border)]/30 p-3 text-[13px] text-fg whitespace-pre-wrap">
+        <div className="mb-3 rounded-md border border-border bg-[color:var(--border)]/30 p-3 text-[13px] text-fg whitespace-pre-wrap break-words">
           {draft.text}
         </div>
       ) : draft?.state === "error" ? (
