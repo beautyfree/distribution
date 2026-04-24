@@ -1,4 +1,5 @@
 import { SearchExperience } from "./_components/SearchExperience";
+import { GitHubStars } from "./_components/GitHubStars";
 
 export default function HomePage() {
   return (
@@ -24,7 +25,7 @@ export default function HomePage() {
             href="https://github.com/beautyfree/distribution-registry"
             target="_blank"
             rel="noreferrer"
-            className="text-[13px] text-muted hover:text-fg"
+            className="hidden text-[13px] text-muted hover:text-fg sm:inline"
           >
             browse
           </a>
@@ -41,15 +42,8 @@ export default function HomePage() {
 
       <SearchExperience />
 
-      <footer className="mt-16 flex items-center gap-4 border-t border-border pt-4 text-[12px] text-muted">
-        <a
-          href="https://github.com/beautyfree/distribution-registry"
-          target="_blank"
-          rel="noreferrer"
-          className="text-muted hover:text-fg"
-        >
-          GitHub ↗
-        </a>
+      <footer className="mt-16 flex flex-wrap items-center gap-4 border-t border-border pt-4 text-[12px] text-muted">
+        <GitHubStars />
         <a href="https://github.com/beautyfree/distribution/blob/master/LICENSE" target="_blank" rel="noreferrer" className="text-muted hover:text-fg">License</a>
         <span className="ml-auto">Made by builders</span>
       </footer>
