@@ -5,21 +5,24 @@ const BATCH_SIZE = 100;
 const STUB_DIM = 1536;
 
 /**
- * Produce an embedding vector per node at build time. Uses OpenAI
- * text-embedding-3-small when OPENAI_API_KEY is set; otherwise returns
- * deterministic stub vectors so the build still completes. OpenRouter
- * does not proxy OpenAI embeddings.
+ * Produce an embedding vector per node at build time. Uses OpenRouter (when
+ * OPENROUTER_API_KEY is set) or direct OpenAI (when OPENAI_API_KEY is set).
+ * Falls back to deterministic stub vectors so the build always completes.
  */
 export async function embedAll(nodes: Node[]): Promise<Float32Array[]> {
   const cfg = resolveEmbeddingConfig();
   if (!cfg) {
     console.warn(
-      "[embed] no OPENAI_API_KEY — writing stub vectors, reader uses topical fallback",
+      "[embed] no API key — writing stub vectors, reader uses topical fallback",
     );
     return nodes.map(() => stubVector());
   }
   const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey: cfg.apiKey });
+  const client = new OpenAI({
+    apiKey: cfg.apiKey,
+    baseURL: cfg.baseURL,
+    defaultHeaders: cfg.headers,
+  });
 
   const out: Float32Array[] = [];
   for (let i = 0; i < nodes.length; i += BATCH_SIZE) {

@@ -4,18 +4,18 @@
  * Supports OpenAI direct OR OpenRouter (OpenAI-compatible proxy).
  *
  * Env vars:
- *   OPENAI_API_KEY       — direct OpenAI. Supports chat + embeddings.
- *   OPENROUTER_API_KEY   — OpenRouter. Supports chat; embeddings NOT available
- *                          (OpenRouter does not proxy text-embedding-3-*).
- *   OPENROUTER_MODEL     — chat model, e.g. "openai/gpt-4o-mini",
- *                          "anthropic/claude-3.5-haiku". Defaults to gpt-4o-mini.
+ *   OPENROUTER_API_KEY      — OpenRouter. Chat + embeddings both supported.
+ *   OPENROUTER_MODEL        — chat model, e.g. "openai/gpt-4o-mini",
+ *                             "anthropic/claude-3.5-haiku". Default gpt-4o-mini.
+ *   OPENROUTER_EMBED_MODEL  — embedding model, e.g. "openai/text-embedding-3-small".
+ *                             Default text-embedding-3-small.
+ *   OPENAI_API_KEY          — direct OpenAI. Works for both. Used if no OpenRouter.
  *
- * Resolution:
- *   chat:       prefer OPENROUTER if set, else OPENAI
- *   embedding:  only OPENAI (OpenRouter unsupported — caller falls back)
+ * Resolution (same strategy for chat and embedding):
+ *   prefer OPENROUTER if set, else OPENAI, else null (caller falls back).
  */
 
-export type ChatConfig = {
+export type LlmConfig = {
   apiKey: string;
   baseURL?: string;
   model: string;
@@ -23,31 +23,39 @@ export type ChatConfig = {
 };
 
 const SITE_URL = "https://github.com/beautyfree/distribution";
+const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+const OPENROUTER_HEADERS: Record<string, string> = {
+  "HTTP-Referer": SITE_URL,
+  "X-Title": "distribution",
+};
 
-export function resolveChatConfig(): ChatConfig | null {
+export function resolveChatConfig(): LlmConfig | null {
   const routerKey = process.env.OPENROUTER_API_KEY;
   if (routerKey) {
     return {
       apiKey: routerKey,
-      baseURL: "https://openrouter.ai/api/v1",
+      baseURL: OPENROUTER_BASE,
       model: process.env.OPENROUTER_MODEL ?? "openai/gpt-4o-mini",
-      headers: {
-        "HTTP-Referer": SITE_URL,
-        "X-Title": "distribution",
-      },
+      headers: OPENROUTER_HEADERS,
     };
   }
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
-    return {
-      apiKey: openaiKey,
-      model: "gpt-4o-mini",
-    };
+    return { apiKey: openaiKey, model: "gpt-4o-mini" };
   }
   return null;
 }
 
-export function resolveEmbeddingConfig(): { apiKey: string; model: string } | null {
+export function resolveEmbeddingConfig(): LlmConfig | null {
+  const routerKey = process.env.OPENROUTER_API_KEY;
+  if (routerKey) {
+    return {
+      apiKey: routerKey,
+      baseURL: OPENROUTER_BASE,
+      model: process.env.OPENROUTER_EMBED_MODEL ?? "openai/text-embedding-3-small",
+      headers: OPENROUTER_HEADERS,
+    };
+  }
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
     return { apiKey: openaiKey, model: "text-embedding-3-small" };
@@ -56,5 +64,5 @@ export function resolveEmbeddingConfig(): { apiKey: string; model: string } | nu
 }
 
 export function hasEmbeddingCreds(): boolean {
-  return !!process.env.OPENAI_API_KEY;
+  return !!(process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY);
 }
