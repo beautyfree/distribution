@@ -1,18 +1,21 @@
 # Distribution — Saturday Runbook
 
-Start here Saturday morning. Everything is wired; you just need to ship and seed.
+Deployed. Alive. Seed the registry and start using it.
 
 ## State snapshot (as of 2026-04-24)
 
 | | |
 |---|---|
-| Reader app | `/Users/devall/Projects/tmp/distribution` (this repo) |
-| Registry repo | `/Users/devall/Projects/tmp/distribution-registry` (separate, not yet pushed) |
+| **Live prod** | **https://distribution-tau.vercel.app** |
+| Reader app repo | https://github.com/beautyfree/distribution |
+| Registry repo | https://github.com/beautyfree/distribution-registry  |
+| Vercel project | `alexey-elizarovs-projects/distribution` |
 | Seed nodes | 7 of 50 target — 3 Telegram, 2 subreddits, 2 directories |
 | Reader build | passes, lint clean, 24 unit tests pass |
 | Registry build | passes, 20 validator tests pass |
-| Pushed to GitHub? | no |
-| Vercel? | no |
+| Env vars | OPENROUTER_API_KEY, OPENROUTER_MODEL=openai/gpt-4o-mini, REGISTRY_REPO, REGISTRY_BRANCH |
+| Deploy hook | wired — merge to registry `main` triggers reader rebuild |
+| Deployment protection | disabled (public) |
 
 ## Step 1 — seed the registry (your assignment)
 
