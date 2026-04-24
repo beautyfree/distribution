@@ -1,67 +1,63 @@
 # distribution
 
-Web app: describe a project → ranked **venues** with evidence, draft text, and a per-venue checklist. v0.1 uses a **Postgres** curated index; the `telegram` adapter **only ranks rows already in your database** (see `docs/telegram-strategy.md` and `docs/adapter-venue-spec.md` §5.1).
+Where to post your side-project.
 
-## Prerequisites
+An open registry of communities where AI builders ship and share — Telegram, Reddit, Discord, dev directories. Updated by the community.
 
-- Node 20+
-- Docker (optional, for local Postgres) or any Postgres 16 instance
+**Live:** https://distribution-tau.vercel.app
 
-## Quick start
+## What it does
 
-1. **Database**
+Three steps:
 
-   ```bash
-   docker compose up -d
-   cp .env.example .env
-   ```
+1. **Describe** what you built in a sentence.
+2. **Find** the channels that actually fit — ranked by semantic match (with a topical keyword fallback if no embedding key is set). Filter by platform, language, or audience size.
+3. **Generate** a draft post that respects each channel's tone, rules, and format.
 
-   Adjust `DATABASE_URL` in `.env` if your Postgres differs.
+The registry itself lives in a separate repo so anyone can PR a channel:
+[beautyfree/distribution-registry](https://github.com/beautyfree/distribution-registry).
 
-2. **Schema and seed**
+## Run locally
 
-   ```bash
-   npm install
-   npm run db:push
-   npm run db:seed
-   ```
+```bash
+bun install
+bun run dev
+```
 
-3. **Dev server**
+Open http://localhost:3000.
 
-   ```bash
-   npm run dev
-   ```
+### Environment
 
-   Open [http://localhost:3000](http://localhost:3000). Submit a brief; results come from seeded venues matching `language` (or `language IS NULL`).
+Copy `.env.example` (if present) to `.env.local` and set whichever of these you have:
 
-4. **Health**
+- `OPENROUTER_API_KEY` — chat (draft generation). Recommended for prod.
+- `OPENAI_API_KEY` — chat + embeddings (semantic search). Without it, search falls back to topical keyword scoring.
 
-   `GET /api/health` — database connectivity + `telegram` adapter capability metadata.
+### Local registry override
 
-## Privacy and retention (v0.1)
+Point the reader at a local checkout of the registry instead of the remote
+JSON feed:
 
-- **Server:** The POST body (project brief) is used only to rank venues in-process. **Do not log** raw briefs or tokens in production; add redaction if you add structured logging.
-- **Browser:** Checklist checkbox state is stored in `localStorage` (`distribution:checklist:v0`) on the device only.
-- **Cache:** In-memory rate limit for `POST /api/recommendations` (20 requests / minute / IP). Adapter response cache (TTL + keys per spec §4.6) is not implemented yet — see `TODOS.md`.
+```bash
+REGISTRY_LOCAL_PATH=../distribution-registry bun run dev
+```
 
 ## Scripts
 
 | Command        | Purpose                          |
 |----------------|----------------------------------|
-| `npm run dev`  | Next.js dev                      |
-| `npm run build`| Production build                 |
-| `npm run db:push` | Apply Drizzle schema to DB   |
-| `npm run db:seed` | Upsert rows from `data/venues.seed.json` |
-| `npm run lint` | ESLint                           |
+| `bun run dev`  | Next.js dev server               |
+| `bun run build`| Production build (prebuilds embeddings) |
+| `bun run lint` | ESLint                           |
+| `bun test tests/` | Unit tests                    |
 
-## Docs
+## Contribute
 
-- `LANDSCAPE.md` — positioning  
-- `docs/adapter-venue-spec.md` — contracts  
-- `docs/telegram-strategy.md` — v0.1 Telegram behavior  
-- `docs/ui-v0.1-design.md` — UI contract  
-- `docs/ceo-review.md` — plan review log  
+Channels live in the registry repo. Open a PR or an issue there:
+https://github.com/beautyfree/distribution-registry
+
+Bug reports and shell improvements welcome in this repo.
 
 ## License
 
-Specify in a follow-up commit if you open-source this repo.
+See [LICENSE](./LICENSE).
