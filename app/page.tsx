@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { SearchExperience } from "./_components/SearchExperience";
 import { GitHubStars } from "./_components/GitHubStars";
+import { ThemeToggle } from "./_components/ThemeToggle";
 
 export default function HomePage() {
   return (
@@ -20,7 +22,7 @@ export default function HomePage() {
             distribution
           </div>
         </div>
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-3">
           <a
             href="https://github.com/beautyfree/distribution-registry"
             target="_blank"
@@ -29,6 +31,7 @@ export default function HomePage() {
           >
             browse
           </a>
+          <ThemeToggle />
           <a
             href="https://github.com/beautyfree/distribution-registry/issues/new?template=add-channel.md"
             target="_blank"
@@ -40,7 +43,9 @@ export default function HomePage() {
         </nav>
       </header>
 
-      <SearchExperience />
+      <Suspense fallback={null}>
+        <SearchExperience />
+      </Suspense>
 
       <footer className="mt-16 flex flex-wrap items-center gap-4 border-t border-border pt-4 text-[12px] text-muted">
         <GitHubStars />

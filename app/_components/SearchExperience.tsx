@@ -1,35 +1,31 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
+import { track } from "@vercel/analytics";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useTransition,
   type FormEvent,
 } from "react";
+import type {
+  ApiNode,
+  MatchResponse,
+  Sort,
+  ViewMode,
+} from "@/lib/api-types";
+import {
+  decodeSearchState,
+  encodeSearchState,
+  type SearchState,
+} from "@/lib/url-state";
+import { savedCounts, useSaved } from "@/lib/saved";
+import { ResultsView } from "./ResultsView";
 
-type ApiNode = {
-  id: string;
-  type: string;
-  name: string;
-  url: string;
-  audience_size: number;
-  topics: string[];
-  post_rules: string;
-  post_format: string;
-  language: string;
-  description: string | null;
-  score: number;
-};
-
-type MatchResponse = {
-  count: number;
-  mode: "semantic" | "topical" | "empty";
-  nodes: ApiNode[];
-};
-
-type Sort = "best" | "newest" | "audience";
+type DraftState = { state: "loading" | "ok" | "error"; text?: string };
 
 const TYPE_FILTERS: { label: string; value: string }[] = [
   { label: "telegram", value: "telegram-chat" },
@@ -44,19 +40,89 @@ const EXAMPLES = [
   "indie writing app",
 ];
 
+const VIEW_OPTIONS: { label: string; value: ViewMode }[] = [
+  { label: "Tier", value: "tier" },
+  { label: "Platform", value: "platform" },
+  { label: "Flat", value: "flat" },
+  { label: "Saved", value: "saved" },
+];
+
+const COOKIE_NAME = "dist_sid";
+const COOKIE_MAX_AGE = 90 * 24 * 60 * 60;
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+
+function writeCookie(name: string, value: string) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE}; samesite=lax${
+    typeof location !== "undefined" && location.protocol === "https:" ? "; secure" : ""
+  }`;
+}
+
+async function hashSid(sid: string): Promise<string> {
+  if (typeof crypto === "undefined" || !crypto.subtle) return sid.slice(0, 12);
+  const buf = await crypto.subtle.digest(
+    "SHA-1",
+    new TextEncoder().encode(sid),
+  );
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 12);
+}
+
 export function SearchExperience() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // Hydrate once from URL. After mount, state lives in React and the URL
+  // mirrors state via router.replace — not the other way around. Re-reading
+  // searchParams would fight the component's own writes.
+  const initial = useMemo(
+    () => decodeSearchState(new URLSearchParams(searchParams.toString())),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [description, setDescription] = useState("");
-  const [activeTypes, setActiveTypes] = useState<Set<string>>(new Set());
-  const [enOnly, setEnOnly] = useState(false);
-  const [minK, setMinK] = useState(false);
-  const [sort, setSort] = useState<Sort>("best");
+  const [description, setDescription] = useState(initial.description);
+  const [activeTypes, setActiveTypes] = useState<Set<string>>(
+    () => new Set(initial.types),
+  );
+  const [enOnly, setEnOnly] = useState(initial.language === "en");
+  const [minK, setMinK] = useState(
+    initial.minAudience !== null && initial.minAudience >= 1000,
+  );
+  const [sort, setSort] = useState<Sort>(initial.sort);
+  const [view, setView] = useState<ViewMode>(initial.view);
   const [results, setResults] = useState<MatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [drafts, setDrafts] = useState<Record<string, { state: "loading" | "ok" | "error"; text?: string }>>({});
+  const [drafts, setDrafts] = useState<Record<string, DraftState>>({});
+  const didAutoSubmitRef = useRef(false);
 
-  // Cmd/Ctrl+K focuses textarea (replaces app/keyboard.tsx wiring inline)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const existing = readCookie(COOKIE_NAME);
+      const sid = existing ?? crypto.randomUUID();
+      writeCookie(COOKIE_NAME, sid);
+      if (existing) {
+        const hash = await hashSid(sid);
+        if (!cancelled) track("session_return", { sid: hash });
+      } else if (!cancelled) {
+        track("session_new");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -68,20 +134,45 @@ export function SearchExperience() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const syncURL = useCallback(
+    (state: SearchState) => {
+      const p = encodeSearchState(state);
+      const query = p.toString();
+      const target = query ? `/?${query}` : "/";
+      router.replace(target, { scroll: false });
+    },
+    [router],
+  );
+
   const submit = useCallback(
-    async (text: string) => {
+    async (text: string, overrides?: Partial<SearchState>) => {
       const trimmed = text.trim();
       if (!trimmed) return;
       setError(null);
+      const state: SearchState = {
+        description: trimmed,
+        types: overrides?.types ?? Array.from(activeTypes),
+        language: overrides?.language ?? (enOnly ? "en" : null),
+        minAudience: overrides?.minAudience ?? (minK ? 1000 : null),
+        sort: overrides?.sort ?? sort,
+        view: overrides?.view ?? view,
+      };
       const filters: Record<string, unknown> = {};
-      if (activeTypes.size > 0) filters.types = Array.from(activeTypes);
-      if (enOnly) filters.language = "en";
-      if (minK) filters.minAudience = 1000;
+      if (state.types.length > 0) filters.types = state.types;
+      if (state.language === "en") filters.language = "en";
+      if (state.minAudience) filters.minAudience = state.minAudience;
+
+      syncURL(state);
+
       try {
         const res = await fetch("/api/match", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description: trimmed, filters, sort }),
+          body: JSON.stringify({
+            description: trimmed,
+            filters,
+            sort: state.sort,
+          }),
         });
         if (!res.ok) {
           setError(`search failed: ${res.status}`);
@@ -89,28 +180,36 @@ export function SearchExperience() {
         }
         const data = (await res.json()) as MatchResponse;
         setResults(data);
+        track("match_submitted", { mode: data.mode, count: data.count });
       } catch (e) {
         setError(e instanceof Error ? e.message : "network error");
       }
     },
-    [activeTypes, enOnly, minK, sort],
+    [activeTypes, enOnly, minK, sort, view, syncURL],
   );
+
+  useEffect(() => {
+    if (didAutoSubmitRef.current) return;
+    if (initial.description.trim()) {
+      didAutoSubmitRef.current = true;
+      startTransition(() => void submit(initial.description));
+    }
+  }, [initial.description, submit]);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    startTransition(() => {
-      void submit(description);
-    });
+    startTransition(() => void submit(description));
   }
 
   function toggleType(value: string) {
-    setActiveTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(value)) next.delete(value);
-      else next.add(value);
-      return next;
-    });
-    if (description.trim()) startTransition(() => void submit(description));
+    const next = new Set(activeTypes);
+    if (next.has(value)) next.delete(value);
+    else next.add(value);
+    setActiveTypes(next);
+    if (description.trim())
+      startTransition(() =>
+        void submit(description, { types: Array.from(next) }),
+      );
   }
 
   async function generateDraft(node: ApiNode) {
@@ -124,18 +223,28 @@ export function SearchExperience() {
       });
       const data = (await res.json()) as { draft?: string; error?: string };
       if (!res.ok || !data.draft) {
-        setDrafts((d) => ({ ...d, [node.id]: { state: "error", text: data.error ?? `${res.status}` } }));
+        setDrafts((d) => ({
+          ...d,
+          [node.id]: { state: "error", text: data.error ?? `${res.status}` },
+        }));
         return;
       }
       setDrafts((d) => ({ ...d, [node.id]: { state: "ok", text: data.draft } }));
+      track("draft_generated", { type: node.type });
     } catch (e) {
       setDrafts((d) => ({
         ...d,
-        [node.id]: { state: "error", text: e instanceof Error ? e.message : "network error" },
+        [node.id]: {
+          state: "error",
+          text: e instanceof Error ? e.message : "network error",
+        },
       }));
     }
   }
 
+  const saved = useSaved();
+  const counts = savedCounts(saved);
+  const isSavedView = view === "saved";
   const showResults = results !== null || pending;
   const hasResults = !!results && results.nodes.length > 0;
   const isEmpty = results !== null && results.nodes.length === 0;
@@ -201,14 +310,57 @@ export function SearchExperience() {
         </form>
       </section>
 
-      <div className="mt-8 flex flex-wrap items-center gap-1.5">
+      <div
+        className="mt-8 flex flex-wrap items-center gap-2"
+        role="radiogroup"
+        aria-label="Results view mode"
+      >
+        <span className="mr-1 text-[12px] text-muted">View</span>
+        {VIEW_OPTIONS.map((opt) => {
+          const active = view === opt.value;
+          const isSavedOpt = opt.value === "saved";
+          const label =
+            isSavedOpt && counts.saved > 0
+              ? `${opt.label} (${counts.saved}${counts.posted > 0 ? `, ${counts.posted}✓` : ""})`
+              : opt.label;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => {
+                setView(opt.value);
+                syncURL({
+                  description,
+                  types: Array.from(activeTypes),
+                  language: enOnly ? "en" : null,
+                  minAudience: minK ? 1000 : null,
+                  sort,
+                  view: opt.value,
+                });
+              }}
+              className={
+                active
+                  ? "rounded border border-[color:var(--accent)] bg-[rgba(255,92,0,0.06)] px-2.5 py-1 text-[12px] text-[color:var(--accent)]"
+                  : "rounded border border-border bg-transparent px-2.5 py-1 text-[12px] text-muted hover:border-[color:var(--fg)] hover:text-fg"
+              }
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-[12px] text-muted">Filter</span>
         <FilterChip
           label="all types"
           active={activeTypes.size === 0}
           onClick={() => {
             setActiveTypes(new Set());
-            if (description.trim()) startTransition(() => void submit(description));
+            if (description.trim())
+              startTransition(() => void submit(description, { types: [] }));
           }}
         />
         {TYPE_FILTERS.map((f) => (
@@ -223,16 +375,24 @@ export function SearchExperience() {
           label="en"
           active={enOnly}
           onClick={() => {
-            setEnOnly((v) => !v);
-            if (description.trim()) startTransition(() => void submit(description));
+            const next = !enOnly;
+            setEnOnly(next);
+            if (description.trim())
+              startTransition(() =>
+                void submit(description, { language: next ? "en" : null }),
+              );
           }}
         />
         <FilterChip
           label="1k+ subs"
           active={minK}
           onClick={() => {
-            setMinK((v) => !v);
-            if (description.trim()) startTransition(() => void submit(description));
+            const next = !minK;
+            setMinK(next);
+            if (description.trim())
+              startTransition(() =>
+                void submit(description, { minAudience: next ? 1000 : null }),
+              );
           }}
         />
         <label htmlFor="sort-select" className="sr-only">
@@ -244,7 +404,10 @@ export function SearchExperience() {
           onChange={(e) => {
             const next = e.target.value as Sort;
             setSort(next);
-            if (description.trim()) startTransition(() => void submit(description));
+            if (description.trim())
+              startTransition(() =>
+                void submit(description, { sort: next }),
+              );
           }}
           className="ml-auto rounded border border-border bg-transparent px-2 py-1 text-[12px] text-muted"
         >
@@ -271,7 +434,16 @@ export function SearchExperience() {
           </div>
         ) : null}
 
-        {!showResults ? (
+        {isSavedView ? (
+          <ResultsView
+            nodes={results?.nodes ?? []}
+            mode={results?.mode ?? "semantic"}
+            viewMode="saved"
+            drafts={drafts}
+            disabled={!description.trim()}
+            onGenerate={generateDraft}
+          />
+        ) : !showResults ? (
           <EmptyHint />
         ) : pending && !results ? (
           <SkeletonList />
@@ -297,15 +469,14 @@ export function SearchExperience() {
                 </span>
               ) : null}
             </div>
-            {results!.nodes.map((n) => (
-              <ResultCard
-                key={n.id}
-                node={n}
-                draft={drafts[n.id]}
-                disabled={!description.trim()}
-                onGenerate={() => generateDraft(n)}
-              />
-            ))}
+            <ResultsView
+              nodes={results!.nodes}
+              mode={results!.mode}
+              viewMode={view}
+              drafts={drafts}
+              disabled={!description.trim()}
+              onGenerate={generateDraft}
+            />
           </>
         ) : null}
       </section>
@@ -383,107 +554,5 @@ function SkeletonList() {
         />
       ))}
     </>
-  );
-}
-
-function formatAudience(n: number): string {
-  if (n === 0) return "—";
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M subs`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k subs`;
-  return `${n} subs`;
-}
-
-function ResultCard({
-  node,
-  draft,
-  disabled,
-  onGenerate,
-}: {
-  node: ApiNode;
-  draft?: { state: "loading" | "ok" | "error"; text?: string };
-  disabled: boolean;
-  onGenerate: () => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  async function copy() {
-    if (!draft?.text) return;
-    try {
-      await navigator.clipboard.writeText(draft.text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard blocked — leave text visible for manual copy */
-    }
-  }
-  return (
-    <article
-      aria-label={`${node.name}, ${formatAudience(node.audience_size)}`}
-      className="mb-2 rounded-lg border border-border p-4 transition-colors duration-150 hover:border-[color:var(--fg)]"
-    >
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="text-[15px] font-semibold">{node.name}</span>
-          <span
-            className="rounded-sm bg-border px-1.5 py-0.5 text-[11px] text-muted"
-            style={{ fontFamily: "var(--font-mono)" }}
-          >
-            {node.type}
-          </span>
-        </div>
-        <span
-          className="whitespace-nowrap text-[13px] text-muted"
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          {formatAudience(node.audience_size)}
-        </span>
-      </div>
-      <div className="mb-3 text-[13px] text-muted">{node.post_rules}</div>
-
-      {draft?.state === "ok" ? (
-        <div className="mb-3 rounded-md border border-border bg-[color:var(--border)]/30 p-3 text-[13px] text-fg whitespace-pre-wrap break-words">
-          {draft.text}
-        </div>
-      ) : draft?.state === "error" ? (
-        <div
-          role="alert"
-          className="mb-3 rounded-md border border-[color:var(--accent)] bg-[rgba(255,92,0,0.06)] p-2 text-[12px] text-fg"
-        >
-          Draft failed: {draft.text}
-        </div>
-      ) : null}
-
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={disabled || draft?.state === "loading"}
-          aria-busy={draft?.state === "loading"}
-          className="inline-flex min-h-[44px] items-center rounded-md border-0 bg-[color:var(--accent)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--accent-fg)] disabled:opacity-40 md:min-h-0"
-        >
-          {draft?.state === "loading"
-            ? "Generating…"
-            : draft?.state === "ok"
-              ? "Regenerate"
-              : "Generate post"}
-        </button>
-        {draft?.state === "ok" ? (
-          <button
-            type="button"
-            onClick={copy}
-            className="inline-flex min-h-[44px] items-center rounded-md border border-border px-3 py-1.5 text-[12px] text-muted hover:border-[color:var(--fg)] hover:text-fg md:min-h-0"
-          >
-            {copied ? "Copied ✓" : "Copy"}
-          </button>
-        ) : null}
-        <a
-          href={node.url}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex min-h-[44px] items-center rounded-md border border-border px-3 py-1.5 text-[12px] text-muted hover:border-[color:var(--fg)] hover:text-fg md:min-h-0"
-        >
-          Open ↗
-        </a>
-      </div>
-    </article>
   );
 }
