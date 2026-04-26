@@ -15,7 +15,21 @@ export async function getCache(): Promise<CachedPayload> {
   try {
     const raw = await fs.readFile(CACHE_PATH, "utf8");
     const parsed = JSON.parse(raw) as CachedPayload;
-    cached = { nodes: parsed.nodes ?? [], built_at: parsed.built_at, model: parsed.model };
+    const nodes = parsed.nodes ?? [];
+    const sample = nodes[0]?.embedding;
+    const hasRealEmbeddings =
+      !!sample && sample.length > 0 && sample.some((v) => v !== 0);
+    if (nodes.length > 0 && !hasRealEmbeddings) {
+      console.warn(
+        "[cache] embeddings.json has zero-vector embeddings — rebuild via `bun run build` or `bunx tsx scripts/build-embeddings.ts`. Falling back to topical scoring.",
+      );
+    }
+    cached = {
+      nodes,
+      built_at: parsed.built_at,
+      model: parsed.model,
+      hasRealEmbeddings,
+    };
     return cached;
   } catch (err) {
     console.warn("[cache] failed to read embeddings.json:", err);

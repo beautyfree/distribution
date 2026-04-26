@@ -44,9 +44,11 @@ export async function POST(req: Request) {
     sort as SortMode,
   );
 
+  const useSemantic =
+    cache.hasRealEmbeddings !== false && embedding.length > 0;
   return NextResponse.json({
     count: results.length,
-    mode: embedding.length > 0 ? "semantic" : "topical",
+    mode: useSemantic ? "semantic" : "topical",
     nodes: results.map((r) => ({
       id: r.node.id,
       type: r.node.type,

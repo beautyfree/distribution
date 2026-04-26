@@ -5,6 +5,7 @@ export type CachedPayload = {
   built_at?: string;
   model?: string;
   nodes: CachedEntry[];
+  hasRealEmbeddings?: boolean;
 };
 
 export type SortMode = "best" | "newest" | "audience";
@@ -105,7 +106,10 @@ export function rank(
   sort: SortMode,
 ): MatchResult[] {
   const useCosine =
-    query.embedding && query.embedding.length > 0 && hasNonZero(query.embedding);
+    cache.hasRealEmbeddings !== false &&
+    !!query.embedding &&
+    query.embedding.length > 0 &&
+    hasNonZero(query.embedding);
   const filtered = cache.nodes.filter((entry) => applyFilters(entry, filters));
   const scored: MatchResult[] = filtered.map((entry) => {
     const score = useCosine
